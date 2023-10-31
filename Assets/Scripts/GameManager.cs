@@ -5,7 +5,7 @@ using UnityEngine;
 public enum GameState { Title, Playing, Paused, GameOver}
 public enum Difficulty { Easy, Medium, Hard}
 
-public class GameManager : MonoBehaviour
+public class GameManager : Singleton<GameManager>
 {
     public GameState gameState;
     public Difficulty difficulty;
@@ -28,4 +28,27 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void AddScore(int _points)
+    {
+        score += _points * scoreMultiplier;
+        _UI.UpdateScore(score);
+    }
+
+    void OnEnemyHit(GameObject _enemy)
+    {
+        int _score = _enemy.GetComponent<Enemy>().myScore;
+        AddScore(_score);
+    }
+
+    private void OnEnable()
+    {
+        Enemy.OnEnemyHit += OnEnemyHit;
+        Enemy.OnEnemyDie += OnEnemyHit;
+    }
+
+    private void OnDisable()
+    {
+        Enemy.OnEnemyHit -= OnEnemyHit;
+        Enemy.OnEnemyDie -= OnEnemyHit;
+    }
 }

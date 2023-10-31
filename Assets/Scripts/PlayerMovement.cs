@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerMovement : MonoBehaviour
+public class PlayerMovement : GameBehaviour
 {
     public CharacterController controller;
     public float speed = 10f;
@@ -18,22 +18,22 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        //Checks if we are touching the ground.
+        //Checks if we are touching the ground
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
 
         if (isGrounded && velocity.y < 0)
             velocity.y = -2f;
 
-        //Get the input for the player.
+        //Get the input for the player
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
 
-        //Move the player.
+        //Move the player
         Vector3 move = transform.right * x + transform.forward * z;
         controller.Move(move * speed * Time.deltaTime);
 
-        //Does the jump work
-        if (Input.GetButtonDown("Jump") && isGrounded) 
+        //Does the jump stuff
+        if (Input.GetButtonDown("Jump") && isGrounded)
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
 
         velocity.y += gravity * Time.deltaTime;

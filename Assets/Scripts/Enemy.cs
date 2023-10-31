@@ -1,45 +1,63 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
-public class Enemy : MonoBehaviour
+public class Enemy : GameBehaviour
 {
+    public static event Action<GameObject> OnEnemyHit = null;
+    public static event Action<GameObject> OnEnemyDie = null;
+
     public PatrolType myPatrol;
-    public float speed = 1f;
+    float baseSpeed = 2f;
+    public float mySpeed = 1f;
     float moveDistance = 1000;
 
-    public float Health;
+    int baseHealth = 100;
+    int maxHealth;
+    public int myHealth;
+    public int myScore;
+    EnemyHealthBar healthBar;
+
+    public string myName;
 
     [Header("AI")]
     public EnemyType myType;
-    public Transform moveToPos; //Needed for all patrols.
-    public EnemyManager _EM;
-    Transform startPos;         //Needed for loop patrol movement.
-    Transform endPos;           //Needed for loop patrol movement.
-    bool reverse;               //Needed for loop patrol movement.
-    int patrolPoint = 0;        //Needed for linear patrol movement.
+    public Transform moveToPos; //Needed for all patrols
+    Transform startPos;         //Needed for loop patrol movement
+    Transform endPos;           //Needed for loop patrol movement
+    bool reverse;               //Needed for loop patrol movement
+    int patrolPoint = 0;        //Needed for linear patrol movement
+
 
     void Start()
     {
-        _EM = FindObjectOfType<EnemyManager>();
+        healthBar = GetComponentInChildren<EnemyHealthBar>();
+        SetName(_EM.GetEnemyName());
+
         switch (myType)
         {
             case EnemyType.OneHand:
-                Health = 80f;
-                speed = 3f;
+                myHealth = maxHealth = baseHealth;
+                mySpeed = baseSpeed;
                 myPatrol = PatrolType.Linear;
+                myScore = 100;
                 break;
             case EnemyType.TwoHand:
-                Health = 100f;
-                speed = 5f;
+                myHealth = maxHealth = baseHealth * 2;
+                mySpeed = baseSpeed / 2;
                 myPatrol = PatrolType.Random;
+                myScore = 200;
                 break;
             case EnemyType.Archer:
-                Health = 60f;
-                speed = 1f;
-                myPatrol= PatrolType.Loop;
+                myHealth = maxHealth = baseHealth / 2;
+                mySpeed = baseSpeed * 2;
+                myPatrol = PatrolType.Loop;
+                myScore = 300;
                 break;
         }
+
         SetupAI();
     }
 
@@ -57,13 +75,19 @@ public class Enemy : MonoBehaviour
             StopAllCoroutines();
     }
 
+    public void SetName(string _name)
+    {
+        name = _name;
+        healthBar.SetName(_name);
+    }
+
     IEnumerator Move()
     {
         switch(myPatrol)
         {
             case PatrolType.Linear:
-                moveToPos = _EM.spawnPoint[patrolPoint];
-                patrolPoint = patrolPoint != _EM.spawnPoint.Length ? patrolPoint + 1 : 0;
+                moveToPos = _EM.spawnPoints[patrolPoint];
+                patrolPoint = patrolPoint != _EM.spawnPoints.Length ? patrolPoint + 1 : 0;
                 break;
             case PatrolType.Random:
                 moveToPos = _EM.GetRandomSpawnPoint();
@@ -74,11 +98,10 @@ public class Enemy : MonoBehaviour
                 break;
         }
 
-
         transform.LookAt(moveToPos);
         while(Vector3.Distance(transform.position, moveToPos.position) > 0.3f)
         {
-            transform.position = Vector3.MoveTowards(transform.position, moveToPos.position, Time.deltaTime * speed);
+            transform.position = Vector3.MoveTowards(transform.position, moveToPos.position, Time.deltaTime * mySpeed);
             yield return null;
         }
 
@@ -86,17 +109,51 @@ public class Enemy : MonoBehaviour
         StartCoroutine(Move());
     }
 
+    private void Hit(int _damage)
+    {
+        myHealth -= _damage;
+        healthBar.UpdateHealthBar(myHealth, maxHealth);
+        ScaleObject(this.gameObject, transform.localScale * 1.1f);
+        
+        if (myHealth <= 0)
+        {
+            Die();
+        }
+        else
+        {
+            OnEnemyHit?.Invoke(this.gameObject);
+            //_GM.AddScore(myScore);
+        }
+    }
+
+    private void Die()
+    {
+        StopAllCoroutines();
+        OnEnemyDie?.Invoke(this.gameObject);
+        //_GM.AddScore(myScore * 2);
+        //_EM.KillEnemy(this.gameObject);
+        //Destroy(this.gameObject);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.collider.CompareTag("Projectile"))
+        {
+            Hit(collision.gameObject.GetComponent<Projectile>().damage);
+            Destroy(collision.gameObject);
+        }
+    }
+
     /*IEnumerator Move()
     {
         for(int i = 0; i < moveDistance; i++)
         {
-            transform.Translate(Vector3.forward * Time.deltaTime * speed);
+            transform.Translate(Vector3.forward * Time.deltaTime * mySpeed);
             yield return null;
         }
-
         transform.Rotate(Vector3.up * 180);
         yield return new WaitForSeconds(Random.Range(1, 3));
         StartCoroutine(Move());
-    }
-    */
+    }*/
+
 }

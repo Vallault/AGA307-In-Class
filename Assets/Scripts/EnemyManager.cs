@@ -4,8 +4,8 @@ using UnityEngine;
 
 public enum EnemyType
 {
-    OneHand,
-    TwoHand,
+    OneHand, 
+    TwoHand, 
     Archer
 }
 
@@ -14,21 +14,19 @@ public enum PatrolType
     Linear, Random, Loop
 }
 
-
-public class EnemyManager : MonoBehaviour
+public class EnemyManager : Singleton<EnemyManager>
 {
-    public Transform[] spawnPoint;
+    public Transform[] spawnPoints;
     public string[] enemyNames;
     public GameObject[] enemyTypes;
 
     public List<GameObject> enemies;
     public string killCondition = "Two";
 
-
-    private void Start()
+    void Start()
     {
         //SpawnEnemies();
-        SpawnAtRandom();
+        //SpawnAtRandom();
         StartCoroutine(SpawnEnemiesWithDelay());
     }
 
@@ -44,61 +42,82 @@ public class EnemyManager : MonoBehaviour
             KillSpecificEnemies(killCondition);
     }
 
+    /// <summary>
+    /// Spawns an ememy every random amount of seconds
+    /// </summary>
     IEnumerator SpawnEnemiesWithDelay()
     {
-
-        for (int i = 0; i < spawnPoint.Length; i++)
+        for(int i = 0; i < spawnPoints.Length; i++)
         {
             int rnd = Random.Range(0, enemyTypes.Length);
-            GameObject enemy = Instantiate(enemyTypes[rnd], spawnPoint[i].position, spawnPoint[i].rotation);
-            yield return new WaitForSeconds(2);
+            GameObject enemy = Instantiate(enemyTypes[rnd], spawnPoints[i].position, spawnPoints[i].rotation);
+            enemies.Add(enemy);
+            SetEnemyName(enemy);
+            ShowEnemyCount();
+            yield return new WaitForSeconds(Random.Range(1, 3));
         }
-
     }
 
-
     /// <summary>
-    /// Spawns an enemy at every spawn point.
+    /// Spawns an enemy at every spawn point
     /// </summary>
     void SpawnEnemies()
     {
-        int rnd = Random.Range(0, enemyTypes.Length);
-
-        for (int i = 0; i < spawnPoint.Length; i++)
+        for(int i = 0; i < spawnPoints.Length; i++)
         {
-            GameObject enemy = Instantiate(enemyTypes[rnd], spawnPoint[i].position, spawnPoint[i].rotation);
+            int rnd = Random.Range(0, enemyTypes.Length);
+            GameObject enemy = Instantiate(enemyTypes[rnd], spawnPoints[i].position, spawnPoints[i].rotation);
+            enemies.Add(enemy);
+            SetEnemyName(enemy);
         }
-    }
-
-
-    /// <summary>
-    /// Spawn a random enemy at a random spawn point.
-    /// </summary>
-    void SpawnAtRandom()
-    {
-        int rndEnemy = Random.Range(0, enemyTypes.Length);
-        int rndSpawn = Random.Range(0, spawnPoint.Length);
-        GameObject enemy = Instantiate(enemyTypes[rndEnemy], spawnPoint[rndSpawn].position, spawnPoint[rndSpawn].rotation);
-        enemies.Add(enemy);
         ShowEnemyCount();
     }
 
+    /// <summary>
+    /// Spawns a random enemy at a random spawn point
+    /// </summary>
+    public void SpawnAtRandom()
+    {
+        int rndEnemy = Random.Range(0, enemyTypes.Length);
+        int rndSpawn = Random.Range(0, spawnPoints.Length);
+        GameObject enemy = Instantiate(enemyTypes[rndEnemy], spawnPoints[rndSpawn].position, spawnPoints[rndSpawn].rotation);
+        enemies.Add(enemy);
+        SetEnemyName(enemy);
+        ShowEnemyCount();
+    }
 
     /// <summary>
-    /// Shows the amount of enemies in the stage.
+    /// Shows the amount of enemies in the stage
     /// </summary>
     void ShowEnemyCount()
     {
+        _UI.UpdateEnemyCount(enemies.Count);
+    }
 
-        print("Number of Enemies" + enemies.Count);
+    /// <summary>
+    /// Sets the enemy name
+    /// </summary>
+    /// <param name="_enemy">The enemy name to set</param>
+    void SetEnemyName(GameObject _enemy)
+    {
+        //_enemy.GetComponent<Enemy>().SetName(enemyNames[Random.Range(0, enemyNames.Length)]);
+    }
+
+    /// <summary>
+    /// Gets an enemy name
+    /// </summary>
+    /// <returns></returns>
+    public string GetEnemyName()
+    {
+        return enemyNames[Random.Range(0, enemyNames.Length)];
     }
 
 
     /// <summary>
-    /// Kills a specific enemy.
+    /// Kills a specific enemy
     /// </summary>
-    /// <param name="_enemy">The enemy we want to kill<param>
-    void KillEnemy(GameObject _enemy)
+    /// <param name="_enemy">The enemy we want to kill</param>
+    public void KillEnemy(GameObject _enemy)
     {
         if (enemies.Count == 0)
             return;
@@ -106,29 +125,26 @@ public class EnemyManager : MonoBehaviour
         Destroy(_enemy);
         enemies.Remove(_enemy);
         ShowEnemyCount();
-
     }
 
-
     /// <summary>
-    /// Kills all enemies in our stage.
+    /// Kills all enemies in our stage
     /// </summary>
     void KillAllEnemies()
     {
         if (enemies.Count == 0)
             return;
 
-        for(int i= enemies.Count-1; i >= 0; i--)
+        for(int i = enemies.Count-1; i >= 0; i--)
         {
             KillEnemy(enemies[i]);
-        }    
+        }
     }
 
-
     /// <summary>
-    /// Kill specific enemies.
+    /// Kills specific enemies
     /// </summary>
-    /// <param name="_condition">The condiition of the enemy we want to kill<param>
+    /// <param name="_condition">The condition of the enemy we want to kill</param>
     void KillSpecificEnemies(string _condition)
     {
         for(int i = 0; i < enemies.Count; i++)
@@ -139,24 +155,40 @@ public class EnemyManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Get a random spawn point.
+    /// Get a random spawn point
     /// </summary>
-    /// <returns></returns>
+    /// <returns>A random spawn point</returns>
     public Transform GetRandomSpawnPoint()
     {
-        return spawnPoint[Random.Range(0, spawnPoint.Length)];
+        return spawnPoints[Random.Range(0, spawnPoints.Length)];
     }
 
-    void Exmaples()
+    private void OnEnable()
     {
-        //int numberReputations = 2000;
+        Enemy.OnEnemyDie += KillEnemy;
+    }
 
-        //GameObject firstEnemy = Instantiate(enemyTypes[0], spawnPoint[0]);
-        //firstEnemy.name = enemyNames[0];
+    private void OnDisable()
+    {
+        Enemy.OnEnemyDie -= KillEnemy;
+    }
 
-        SpawnEnemies();
+    void Examples()
+    {
+        int numberRepetitions = 2000;
+        for (int i = 0; i <= numberRepetitions; i++)
+        {
+            print(i);
+        }
 
-        //Create a loop within a loop for a wall.
+        GameObject first = Instantiate(enemyTypes[0], spawnPoints[0].position, spawnPoints[0].rotation);
+        first.name = enemyNames[0];
+
+        int lastEnemy = enemyTypes.Length - 1;
+        GameObject last = Instantiate(enemyTypes[lastEnemy], spawnPoints[lastEnemy].position, spawnPoints[lastEnemy].rotation);
+        last.name = enemyNames[lastEnemy];
+
+        //Create a loop within a loop for a wall
         GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         for (int i = 0; i < 10; i++)
         {
@@ -165,24 +197,5 @@ public class EnemyManager : MonoBehaviour
                 Instantiate(wall, new Vector3(i, j, 0), transform.rotation);
             }
         }
-
-        //
-        for (int i = 0; i <= 100; i++)
-        {
-            print(i);
-        }
-
-        enemyNames[2] = "A new name";
-        print(enemyNames[enemyNames.Length - 1]);
-
-        GameObject first = Instantiate(enemyTypes[0], spawnPoint[0].position, spawnPoint[0].rotation);
-        first.name = enemyNames[0];
-
-        int lastEnemy = enemyTypes.Length - 1;
-        GameObject last = Instantiate(enemyTypes[lastEnemy], spawnPoint[lastEnemy].position, spawnPoint[lastEnemy].rotation);
-        last.name = enemyNames[lastEnemy];
-
     }
-
-
 }

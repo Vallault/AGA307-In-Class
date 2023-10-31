@@ -14,7 +14,6 @@ public class Doors : MonoBehaviour
             door1.SetActive(false);
             door2.SetActive(false);
         }
-
     }
 
     private void OnTriggerExit(Collider other)
@@ -24,6 +23,5 @@ public class Doors : MonoBehaviour
             door1.SetActive(true);
             door2.SetActive(true);
         }
-
     }
 }
