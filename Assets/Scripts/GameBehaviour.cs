@@ -8,6 +8,8 @@ public class GameBehaviour : MonoBehaviour
     protected static EnemyManager _EM { get { return EnemyManager.INSTANCE; } }
     protected static UIManager _UI { get { return UIManager.INSTANCE; } }
 
+    protected static PlayerMovement _PLAYER { get { return PlayerMovement.INSTANCE; }} 
+
 
     /// <summary>
     /// Scales all objects in a list to a new scale

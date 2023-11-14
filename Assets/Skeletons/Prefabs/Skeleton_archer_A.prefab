@@ -526,7 +526,7 @@ Animator:
   m_GameObject: {fileID: 133616}
   m_Enabled: 1
   m_Avatar: {fileID: 9000000, guid: 20300ac630e0fcd4dbab63a9b39cdafa, type: 3}
-  m_Controller: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: ac080b5a1c7b92b40a0296c67978e5ba, type: 2}
   m_CullingMode: 1
   m_UpdateMode: 0
   m_ApplyRootMotion: 1
@@ -552,6 +552,7 @@ MonoBehaviour:
   mySpeed: 1
   myHealth: 0
   myScore: 0
+  myAttackRange: 5
   myName: 
   myType: 2
   moveToPos: {fileID: 0}

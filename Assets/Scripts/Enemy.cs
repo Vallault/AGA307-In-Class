@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -18,6 +19,8 @@ public class Enemy : GameBehaviour
     int maxHealth;
     public int myHealth;
     public int myScore;
+    public float myAttackRange = 2f;
+    public int myDamage = 20;
     EnemyHealthBar healthBar;
 
     public string myName;
@@ -30,9 +33,12 @@ public class Enemy : GameBehaviour
     bool reverse;               //Needed for loop patrol movement
     int patrolPoint = 0;        //Needed for linear patrol movement
 
+    Animator anim;
+
 
     void Start()
     {
+        anim = GetComponent<Animator>();
         healthBar = GetComponentInChildren<EnemyHealthBar>();
         SetName(_EM.GetEnemyName());
 
@@ -43,22 +49,28 @@ public class Enemy : GameBehaviour
                 mySpeed = baseSpeed;
                 myPatrol = PatrolType.Linear;
                 myScore = 100;
+                myDamage = 20;
                 break;
             case EnemyType.TwoHand:
                 myHealth = maxHealth = baseHealth * 2;
                 mySpeed = baseSpeed / 2;
                 myPatrol = PatrolType.Random;
                 myScore = 200;
+                myDamage = 40;
                 break;
             case EnemyType.Archer:
                 myHealth = maxHealth = baseHealth / 2;
                 mySpeed = baseSpeed * 2;
                 myPatrol = PatrolType.Loop;
                 myScore = 300;
+                myDamage = 10;
                 break;
         }
 
         SetupAI();
+
+        if (GetComponentInChildren<EnemyWeapon>() != null) 
+        GetComponentInChildren<EnemyWeapon>().damage = myDamage;
     }
 
     void SetupAI()
@@ -101,6 +113,12 @@ public class Enemy : GameBehaviour
         transform.LookAt(moveToPos);
         while(Vector3.Distance(transform.position, moveToPos.position) > 0.3f)
         {
+            if(Vector3.Distance(transform.position, _PLAYER.transform.position) < myAttackRange)
+            {
+                StopAllCoroutines();
+                StartCoroutine(Attack());
+                yield break;
+            }
             transform.position = Vector3.MoveTowards(transform.position, moveToPos.position, Time.deltaTime * mySpeed);
             yield return null;
         }
@@ -109,11 +127,18 @@ public class Enemy : GameBehaviour
         StartCoroutine(Move());
     }
 
+    IEnumerator Attack()
+    {
+        PlayAnimation("Attack");
+        yield return new WaitForSeconds(1);
+        StartCoroutine(Move());
+    }
+
     private void Hit(int _damage)
     {
         myHealth -= _damage;
         healthBar.UpdateHealthBar(myHealth, maxHealth);
-        ScaleObject(this.gameObject, transform.localScale * 1.1f);
+        //ScaleObject(this.gameObject, transform.localScale * 1.1f);
         
         if (myHealth <= 0)
         {
@@ -121,6 +146,7 @@ public class Enemy : GameBehaviour
         }
         else
         {
+            PlayAnimation("Hit");
             OnEnemyHit?.Invoke(this.gameObject);
             //_GM.AddScore(myScore);
         }
@@ -128,11 +154,19 @@ public class Enemy : GameBehaviour
 
     private void Die()
     {
+        GetComponent<Collider>().enabled = false;
+        PlayAnimation("Die");
         StopAllCoroutines();
         OnEnemyDie?.Invoke(this.gameObject);
         //_GM.AddScore(myScore * 2);
         //_EM.KillEnemy(this.gameObject);
         //Destroy(this.gameObject);
+    }
+
+    void PlayAnimation(string _animationName)
+    {
+        int rnd = UnityEngine.Random.Range(1, 4);
+        anim.SetTrigger(_animationName + rnd);
     }
 
     private void OnCollisionEnter(Collision collision)
