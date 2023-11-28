@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.AI;
 
 public class Enemy : GameBehaviour
 {
@@ -19,7 +20,6 @@ public class Enemy : GameBehaviour
     int maxHealth;
     public int myHealth;
     public int myScore;
-    public float myAttackRange = 2f;
     public int myDamage = 20;
     EnemyHealthBar healthBar;
 
@@ -32,13 +32,21 @@ public class Enemy : GameBehaviour
     Transform endPos;           //Needed for loop patrol movement
     bool reverse;               //Needed for loop patrol movement
     int patrolPoint = 0;        //Needed for linear patrol movement
+    public float attackDistance = 2f;
+    public float detectTime = 5f;
+    public float detectDistance = 10f;
+    int currentWayPoint;
+    NavMeshAgent agent;
 
     Animator anim;
+    AudioSource audioSource;
 
 
     void Start()
     {
         anim = GetComponent<Animator>();
+        agent = GetComponent<NavMeshAgent>();
+        audioSource = GetComponent<AudioSource>();
         healthBar = GetComponentInChildren<EnemyHealthBar>();
         SetName(_EM.GetEnemyName());
 
@@ -47,21 +55,21 @@ public class Enemy : GameBehaviour
             case EnemyType.OneHand:
                 myHealth = maxHealth = baseHealth;
                 mySpeed = baseSpeed;
-                myPatrol = PatrolType.Linear;
+                myPatrol = PatrolType.Patrol;
                 myScore = 100;
                 myDamage = 20;
                 break;
             case EnemyType.TwoHand:
                 myHealth = maxHealth = baseHealth * 2;
                 mySpeed = baseSpeed / 2;
-                myPatrol = PatrolType.Random;
+                myPatrol = PatrolType.Patrol;
                 myScore = 200;
                 myDamage = 40;
                 break;
             case EnemyType.Archer:
                 myHealth = maxHealth = baseHealth / 2;
                 mySpeed = baseSpeed * 2;
-                myPatrol = PatrolType.Loop;
+                myPatrol = PatrolType.Patrol;
                 myScore = 300;
                 myDamage = 10;
                 break;
@@ -69,22 +77,86 @@ public class Enemy : GameBehaviour
 
         SetupAI();
 
-        if (GetComponentInChildren<EnemyWeapon>() != null) 
-        GetComponentInChildren<EnemyWeapon>().damage = myDamage;
+        if (GetComponentInChildren<EnemyWeapon>() != null)
+            GetComponentInChildren<EnemyWeapon>().damage = myDamage;
     }
 
     void SetupAI()
     {
-        startPos = Instantiate(new GameObject(), transform.position, transform.rotation).transform;
-        endPos = _EM.GetRandomSpawnPoint();
-        moveToPos = endPos;
-        StartCoroutine(Move());
+        currentWayPoint = UnityEngine.Random.Range(0, _EM.spawnPoints.Length);
+        agent.SetDestination(_EM.spawnPoints[currentWayPoint].position);
+        ChangeSpeed(mySpeed);
+    }
+
+    void ChangeSpeed(float _speed)
+    {
+        agent.speed = _speed;
     }
 
     private void Update()
     {
-        if(Input.GetKeyDown(KeyCode.Escape))
-            StopAllCoroutines();
+        if (myPatrol == PatrolType.Die)
+            return;
+
+        //Always get the distance between the player and me
+        float disToPlayer = Vector3.Distance(transform.position, _PLAYER.transform.position);
+
+        if (disToPlayer <= detectDistance && myPatrol != PatrolType.Attack)
+        {
+            if (myPatrol != PatrolType.Chase)
+            {
+                myPatrol = PatrolType.Detect;
+            }
+        }
+
+        //Set the animators speed parameter to that of my speed
+        anim.SetFloat("Speed", mySpeed);
+
+        //Switching patrol states logic.
+        switch (myPatrol)
+        {
+            case PatrolType.Patrol:
+                //Get the distance between us and the current waypoint
+                float disToWaypoint = Vector3.Distance(transform.position, _EM.spawnPoints[currentWayPoint].position);
+                //If the distance is close enough, get a new waypoint
+                if (disToWaypoint < 1)
+                    SetupAI();
+                //Reset the detect time
+                detectTime = 5;
+                break;
+
+            case PatrolType.Detect:
+                //Set the destination to ourself, essentially stopping us
+                agent.SetDestination(transform.position);
+                //Stop our speed
+                ChangeSpeed(0);
+                //Decrement our detect time
+                detectTime -= Time.deltaTime;
+                if (disToPlayer <= detectDistance)
+                {
+                    myPatrol = PatrolType.Chase;
+                    detectTime = 5;
+                }
+
+                if (detectTime <= 0)
+                {
+                    myPatrol = PatrolType.Patrol;
+                    SetupAI();
+                }
+                break;
+            case PatrolType.Chase:
+                //Set the destination to that of the player
+                agent.SetDestination(_PLAYER.transform.position);
+                //Increase the speed of which to chase the player
+                ChangeSpeed(mySpeed * 2);
+                //If the player gets outside the detect distance, go back to the detect state
+                if (disToPlayer > detectDistance)
+                    myPatrol = PatrolType.Detect;
+                //If we are close to the player, then attack
+                if (disToPlayer <= attackDistance)
+                    StartCoroutine(Attack());
+                break;
+        }
     }
 
     public void SetName(string _name)
@@ -93,45 +165,15 @@ public class Enemy : GameBehaviour
         healthBar.SetName(_name);
     }
 
-    IEnumerator Move()
-    {
-        switch(myPatrol)
-        {
-            case PatrolType.Linear:
-                moveToPos = _EM.spawnPoints[patrolPoint];
-                patrolPoint = patrolPoint != _EM.spawnPoints.Length ? patrolPoint + 1 : 0;
-                break;
-            case PatrolType.Random:
-                moveToPos = _EM.GetRandomSpawnPoint();
-                break;
-            case PatrolType.Loop:
-                moveToPos = reverse ? startPos : endPos;
-                reverse = !reverse;
-                break;
-        }
-
-        transform.LookAt(moveToPos);
-        while(Vector3.Distance(transform.position, moveToPos.position) > 0.3f)
-        {
-            if(Vector3.Distance(transform.position, _PLAYER.transform.position) < myAttackRange)
-            {
-                StopAllCoroutines();
-                StartCoroutine(Attack());
-                yield break;
-            }
-            transform.position = Vector3.MoveTowards(transform.position, moveToPos.position, Time.deltaTime * mySpeed);
-            yield return null;
-        }
-
-        yield return new WaitForSeconds(1);
-        StartCoroutine(Move());
-    }
-
     IEnumerator Attack()
     {
+        myPatrol = PatrolType.Attack;
+        ChangeSpeed(0);
         PlayAnimation("Attack");
+        _AM.PlaySound(_AM.GetEnemyAttackSound(), audioSource);
         yield return new WaitForSeconds(1);
-        StartCoroutine(Move());
+        ChangeSpeed(mySpeed);
+        myPatrol = PatrolType.Chase;
     }
 
     private void Hit(int _damage)
@@ -139,7 +181,7 @@ public class Enemy : GameBehaviour
         myHealth -= _damage;
         healthBar.UpdateHealthBar(myHealth, maxHealth);
         //ScaleObject(this.gameObject, transform.localScale * 1.1f);
-        
+
         if (myHealth <= 0)
         {
             Die();
@@ -148,16 +190,20 @@ public class Enemy : GameBehaviour
         {
             PlayAnimation("Hit");
             OnEnemyHit?.Invoke(this.gameObject);
-            //_GM.AddScore(myScore);
+            _AM.PlaySound(_AM.GetEnemyHitSound(), audioSource);
         }
     }
 
     private void Die()
     {
+        myPatrol = PatrolType.Die;
+        ChangeSpeed(0);
         GetComponent<Collider>().enabled = false;
         PlayAnimation("Die");
         StopAllCoroutines();
         OnEnemyDie?.Invoke(this.gameObject);
+        _AM.PlaySound(_AM.GetEnemyDieSound(), audioSource);
+
         //_GM.AddScore(myScore * 2);
         //_EM.KillEnemy(this.gameObject);
         //Destroy(this.gameObject);
@@ -168,6 +214,14 @@ public class Enemy : GameBehaviour
         int rnd = UnityEngine.Random.Range(1, 4);
         anim.SetTrigger(_animationName + rnd);
     }
+
+
+    public void PlayFootstep()
+    {
+        _AM.PlaySound(_AM.FootstepsSounds(), audioSource, 0.1f);
+    }
+
+
 
     private void OnCollisionEnter(Collision collision)
     {

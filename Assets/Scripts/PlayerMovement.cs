@@ -17,6 +17,16 @@ public class PlayerMovement : Singleton<PlayerMovement>
     private Vector3 velocity;
     private bool isGrounded;
 
+    AudioSource audioSource;
+    public float stepRate = 0.5f;
+    float stepCooldown;
+    public AudioClip footstep;
+
+    private void Start()
+    {
+        audioSource = GetComponent<AudioSource>();
+    }
+
     void Update()
     {
         //Checks if we are touching the ground
@@ -40,14 +50,25 @@ public class PlayerMovement : Singleton<PlayerMovement>
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
 
+        //Footstep audio stuff
+        stepCooldown -= Time.deltaTime;
+        if (stepCooldown < 0 && isGrounded && (move.x != 0 || move.z != 0))
+        {
+            _GM.gameState = GameState.GameOver;
+            _AM.PlaySound(_AM.GetEnemyDieSound(), audioSource);
+        }
+
     }
 
     public void Hit(int _damage)
     {
         health -= _damage;
-        print("Player health: " + health);
+        //print("Player health: " + health);
+        _AM.PlaySound(_AM.GetEnemyHitSound(), audioSource);
         if (health < 0)
+        {
             _GM.gameState = GameState.GameOver;
-
+            _AM.PlaySound(_AM.GetEnemyDieSound(), audioSource);
+        }
     }
 }
